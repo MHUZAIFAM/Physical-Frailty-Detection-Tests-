@@ -175,11 +175,11 @@ int main() {
                                 // Check if hands are stable (in line with elbows within threshold)
                                 if (areHandsStable(leftHandY, rightHandY, leftElbowY, rightElbowY) && !armsStablePrinted) {
                                     // Print the coordinates only once
-                                    std::cout << "Arms Stable!" << std::endl;
-                                    std::cout << "Right Hand Coordinates | x: " << rightHandY << " | y: " << rightHandY << " | z: " << rightHandY << " |" << std::endl;
-                                    std::cout << "Right Elbow Coordinates| x: " << rightElbowY << " | y: " << rightElbowY << " | z: " << rightElbowY << " |" << std::endl;
-                                    std::cout << "Left Hand Coordinates  | x: " << leftHandY << " | y: " << leftHandY << " | z: " << leftHandY << " |" << std::endl;
-                                    std::cout << "Left Elbow Coordinates | x: " << leftElbowY << " | y: " << leftElbowY << " | z: " << leftElbowY << " |" << std::endl;
+                                    std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << " | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
+                                    std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << " | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
+                                    std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
+                                    std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << " | y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
+
                                     armsStablePrinted = true; // Prevent printing again
                                 }
                             }
