@@ -1,1 +1,169 @@
+//As the code stands now:
+
+//It calculates and displays positions and angles for the selected joints (e.g., shoulder, spine, hand, ankle).
+//It prints the values to the CLI in real time, allowing you to observe how the movements affect these values.
+
+
+/*Hybrid Workflow for Functional Reach Test
+1. Posture Validation Using Joint Angles
+Use skeletal tracking to ensure proper posture and stability before starting the movement:
+Shoulder Alignment:
+Check that the arm is raised to shoulder height using the Y-coordinates of the hand and shoulder joints:
+|HandY - ShoulderY| < Threshold
+Trunk Stability:
+Ensure no significant trunk movement by monitoring the SpineBase and SpineShoulder joints.
+Validate that the angle between the spine and the arm does not exceed a threshold to prevent leaning.
+Example: Calculate the angle between the shoulder, spine, and hand joints:
+scss
+Copy code
+Angle = arccos((v1 • v2) / (|v1| * |v2|)) 
+
+
+v1: Vector from shoulder to spine.
+v2: Vector from shoulder to hand.
+Ankle Stability:
+Check that AnkleY remains stable using:
+|CurrentAnkleY - InitialAnkleY| < Threshold.
+Trigger Point: Once all posture checks pass, lock the starting position (fix depth at the current hand Z-value).
+
+
+When the intial position conditions are satisfied then on live feed will display the message to move forward while maintaining initial posture.
+At that starting point depth can be measured and  then covered distance can be calculated by subtracting the max distance covered 
+If the ankle significantly changes or the mid spine joint is moved significantly then it should stop measuring and display the last max distances it measured. */
+
+#include <Kinect.h>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <cmath>
+
+using namespace std;
+
+// Define pairs of joints to draw skeleton
+const std::vector<std::pair<JointType, JointType>> bones = {
+    { JointType_Head, JointType_Neck },
+    { JointType_Neck, JointType_SpineShoulder },
+    { JointType_SpineShoulder, JointType_SpineMid },
+    { JointType_SpineMid, JointType_SpineBase },
+    { JointType_SpineShoulder, JointType_ShoulderLeft },
+    { JointType_SpineShoulder, JointType_ShoulderRight },
+    { JointType_SpineBase, JointType_HipLeft },
+    { JointType_SpineBase, JointType_HipRight },
+    { JointType_ShoulderLeft, JointType_ElbowLeft },
+    { JointType_ElbowLeft, JointType_WristLeft },
+    { JointType_WristLeft, JointType_HandLeft },
+    { JointType_ShoulderRight, JointType_ElbowRight },
+    { JointType_ElbowRight, JointType_WristRight },
+    { JointType_WristRight, JointType_HandRight },
+    { JointType_HipLeft, JointType_KneeLeft },
+    { JointType_KneeLeft, JointType_AnkleLeft },
+    { JointType_AnkleLeft, JointType_FootLeft },
+    { JointType_HipRight, JointType_KneeRight },
+    { JointType_KneeRight, JointType_AnkleRight },
+    { JointType_AnkleRight, JointType_FootRight }
+};
+
+// Utility function to calculate the angle between two vectors
+float calculateAngle(const CameraSpacePoint& a, const CameraSpacePoint& b, const CameraSpacePoint& c) {
+    float v1x = b.X - a.X;
+    float v1y = b.Y - a.Y;
+    float v1z = b.Z - a.Z;
+
+    float v2x = c.X - b.X;
+    float v2y = c.Y - b.Y;
+    float v2z = c.Z - b.Z;
+
+    float dotProduct = v1x * v2x + v1y * v2y + v1z * v2z;
+    float mag1 = sqrt(v1x * v1x + v1y * v1y + v1z * v1z);
+    float mag2 = sqrt(v2x * v2x + v2y * v2y + v2z * v2z);
+
+    if (mag1 == 0 || mag2 == 0) return 0.0f; // Prevent division by zero
+
+    return acos(dotProduct / (mag1 * mag2)) * (180.0 / M_PI); // Convert radians to degrees
+}
+
+int main() {
+    // Initialize Kinect Sensor, readers, and coordinate mapper
+    IKinectSensor* sensor = nullptr;
+    IBodyFrameReader* bodyFrameReader = nullptr;
+    ICoordinateMapper* coordinateMapper = nullptr;
+
+    if (FAILED(GetDefaultKinectSensor(&sensor)) || !sensor) {
+        std::cerr << "Kinect sensor not found!" << std::endl;
+        return -1;
+    }
+
+    sensor->Open();
+    sensor->get_CoordinateMapper(&coordinateMapper);
+
+    IBodyFrameSource* bodySource = nullptr;
+    sensor->get_BodyFrameSource(&bodySource);
+    bodySource->OpenReader(&bodyFrameReader);
+
+    // Frame loop
+    while (true) {
+        IBodyFrame* bodyFrame = nullptr;
+        HRESULT hrBody = bodyFrameReader->AcquireLatestFrame(&bodyFrame);
+
+        if (SUCCEEDED(hrBody)) {
+            IBody* bodies[BODY_COUNT] = { 0 };
+            hrBody = bodyFrame->GetAndRefreshBodyData(_countof(bodies), bodies);
+
+            for (int i = 0; i < BODY_COUNT; ++i) {
+                IBody* body = bodies[i];
+                if (body) {
+                    BOOLEAN isTracked = false;
+                    body->get_IsTracked(&isTracked);
+
+                    if (isTracked) {
+                        Joint joints[JointType_Count];
+                        body->GetJoints(_countof(joints), joints);
+
+                        // Monitor specific joints
+                        const Joint& shoulder = joints[JointType_SpineShoulder];
+                        const Joint& spineBase = joints[JointType_SpineBase];
+                        const Joint& hand = joints[JointType_HandRight];
+                        const Joint& ankle = joints[JointType_AnkleRight];
+
+                        if (shoulder.TrackingState == TrackingState_Tracked &&
+                            spineBase.TrackingState == TrackingState_Tracked &&
+                            hand.TrackingState == TrackingState_Tracked &&
+                            ankle.TrackingState == TrackingState_Tracked) {
+
+                            // Calculate angles
+                            float shoulderToSpineAngle = calculateAngle(shoulder.Position, spineBase.Position, hand.Position);
+                            float ankleStability = abs(ankle.Position.Y - spineBase.Position.Y);
+
+                            // Display values on CLI
+                            std::cout << "Shoulder to Spine Angle: " << shoulderToSpineAngle << " degrees\n";
+                            std::cout << "Ankle Stability (Y diff): " << ankleStability << " meters\n";
+
+                            // Apply thresholds for stability
+                            if (shoulderToSpineAngle < 10.0f && ankleStability < 0.02f) {
+                                std::cout << "Posture Stable. Locking Initial Depth...\n";
+                                std::cout << "Initial Depth (Hand Z): " << hand.Position.Z << " meters\n";
+                            } else {
+                                std::cout << "Posture Unstable. Adjust Position.\n";
+                            }
+                        }
+                    }
+                }
+            }
+
+            bodyFrame->Release();
+        }
+
+        // Break on Enter key press
+        if (cv::waitKey(30) == 13) break;
+    }
+
+    // Release Kinect resources
+    bodyFrameReader->Release();
+    coordinateMapper->Release();
+    sensor->Close();
+    sensor->Release();
+
+    return 0;
+}
+
 
