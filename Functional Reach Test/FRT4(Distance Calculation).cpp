@@ -268,34 +268,19 @@ int main() {
                                     std::cout << "Maximum Left Hand Distance Covered: " << MaximumLeftHandDistance * 100.0f << " centimeters" << std::endl;
                                 }
 
-
-
-
-
+								//subtract max distance from current hand distance if its negative print the final max distance of both hands
+                                if ((MaximumRightHandDistance - DistanceRightHand) < 0.0f && (MaximumLeftHandDistance - DistanceLeftHand) < 0.0f)
+                                {
+                                    std::cout << "Maximum Right Hand Distance Covered: " << MaximumRightHandDistance * 100.0f << " centimeters" << std::endl;
+                                    std::cout << "Maximum Left Hand Distance Covered: " << MaximumLeftHandDistance * 100.0f << " centimeters" << std::endl;
+                                }
+								
 
                                
-
-                                // if both coordinates are printed, then continously monitor current coordinates and caclculate distance with respect to intial coordinates stored
-                                //if ((initialRightHandZ != -1.0f) && (initialLeftHandZ != -1.0f))
-                                //{
-                                //    // Calculate the distance of the hands from their initial positions
-                                //    currentRightHandZ = joints[JointType_HandRight].Position.Z;
-                                //    currentLeftHandZ = joints[JointType_HandLeft].Position.Z;
-                                //    DistanceRightHand = std::abs(initialRightHandZ - currentRightHandZ);
-                                //    DistanceLeftHand = std::abs(initialLeftHandZ - currentLeftHandZ);
-                                //    std::cout << "Right Hand Distance: " << DistanceRightHand << " meters" << std::endl;
-                                //    std::cout << "Left Hand Distance: " << DistanceLeftHand << " meters" << std::endl;
-                                //    if (MaximumRightHandDistance > DistanceRightHand || MaximumLeftHandDistance > DistanceLeftHand)
-                                //    {
-                                //        MaximumRightHandDistance = DistanceRightHand;
-                                //        MaximumLeftHandDistance = DistanceLeftHand;
-                                //    }
+								
 
 
-                                //    //Print Maximum Distances reached
-                                //    std::cout << "Maximum Right Hand Distance: " << MaximumRightHandDistance << " meters" << std::endl;
-                                //    std::cout << "Maximum Left Hand Distance: " << MaximumLeftHandDistance << " meters" << std::endl;
-                                //}
+                       
 
                                
                             }
