@@ -21,7 +21,7 @@ bool armsStablePrinted = false; // Flag to print once when arms are stable
 
 // Function to check if hands are stable (based on distance to elbows)
 bool areHandsStable(float leftHandY, float rightHandY, float leftElbowY, float rightElbowY) {
-    float threshold = 0.1f;  // Set a small threshold for hand-elbow distance detection (5 cm)
+    float threshold = 0.1f;  // Set a small threshold for hand-elbow distance detection (10 cm)
 
     if (lastLeftHandY == -1.0f || lastRightHandY == -1.0f || lastLeftElbowY == -1.0f || lastRightElbowY == -1.0f) {
         // Initial frame
