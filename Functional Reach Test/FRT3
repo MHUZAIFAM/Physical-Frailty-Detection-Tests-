@@ -5,10 +5,11 @@
 
 float lastLeftHandY = -1.0f, lastRightHandY = -1.0f;
 float lastLeftElbowY = -1.0f, lastRightElbowY = -1.0f;
+float initialLeftHandZ = -1.0f, initialRightHandZ = -1.0f;  // To store initial Z coordinates of the hands
+float initialLeftElbowZ = -1.0f, initialRightElbowZ = -1.0f;  // To store initial Z coordinates of the elbows
 bool armsStable = false;
 int stabilityFrames = 0; // To track how many frames hands are stable
 bool armsStablePrinted = false; // Flag to print once when arms are stable
-float initialZLeft = -1.0f, initialZRight = -1.0f; // Initial coordinates for hands
 
 // Function to check if hands are stable (based on distance to elbows)
 bool areHandsStable(float leftHandY, float rightHandY, float leftElbowY, float rightElbowY) {
@@ -119,7 +120,6 @@ int main() {
                                 body->GetJoints(_countof(joints), joints);
 
                                 float leftHandY = 0, rightHandY = 0, leftElbowY = 0, rightElbowY = 0;
-                                float leftHandZ = 0, rightHandZ = 0;
 
                                 // Only draw circles for the left and right hand joints
                                 for (int j = 0; j < JointType_Count; j++) {
@@ -135,17 +135,31 @@ int main() {
 
                                         if (j == JointType_HandLeft) {
                                             leftHandY = joints[j].Position.Y;
-                                            leftHandZ = z;
+                                            // Save the initial Z coordinate for the left hand
+                                            if (initialLeftHandZ == -1.0f) {
+                                                initialLeftHandZ = z;
+                                            }
                                         }
                                         else if (j == JointType_HandRight) {
                                             rightHandY = joints[j].Position.Y;
-                                            rightHandZ = z;
+                                            // Save the initial Z coordinate for the right hand
+                                            if (initialRightHandZ == -1.0f) {
+                                                initialRightHandZ = z;
+                                            }
                                         }
                                         else if (j == JointType_ElbowLeft) {
                                             leftElbowY = joints[j].Position.Y;
+                                            // Save the initial Z coordinate for the left elbow
+                                            if (initialLeftElbowZ == -1.0f) {
+                                                initialLeftElbowZ = z;
+                                            }
                                         }
                                         else if (j == JointType_ElbowRight) {
                                             rightElbowY = joints[j].Position.Y;
+                                            // Save the initial Z coordinate for the right elbow
+                                            if (initialRightElbowZ == -1.0f) {
+                                                initialRightElbowZ = z;
+                                            }
                                         }
 
                                         if (x >= 0 && x < width && y >= 0 && y < height) {
@@ -168,54 +182,46 @@ int main() {
 
                                 // Check if hands are stable (in line with elbows within threshold)
                                 if (areHandsStable(leftHandY, rightHandY, leftElbowY, rightElbowY) && !armsStablePrinted) {
-    // Initial Coordinates (Only print once)
-    std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << " | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
-    std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << " | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
-    std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
-    std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << " | y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
+                                    // Print the coordinates only once
+                                    std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << " | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
+                                    std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << " | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
+                                    std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
+                                    std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << " | y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
 
-    armsStablePrinted = true;
-    std::cout << "Please bend forward." << std::endl;
-}
+                                    armsStablePrinted = true; // Prevent printing again
+                                }
 
-if (armsStablePrinted) {
-    // Calculate and print Z-coordinate continuously with distance
-    float currentZ = joints[JointType_HandRight].Position.Z;  // Use right hand Z-coordinate for distance
-    float distance = std::abs(currentZ - initialZ);
-
-    // Update distance only if significant change occurs
-    if (distance > lastMeasuredDistance + 0.05f) {  // Threshold of 5cm for significant change
-        lastMeasuredDistance = distance;
-        std::cout << "Distance covered: " << distance << " meters." << std::endl;
-    }
-    
-    // Print final distance when no significant movement is detected
-    if (distance <= lastMeasuredDistance) {
-        std::cout << "Max distance covered: " << lastMeasuredDistance << " meters." << std::endl;
-        std::cout << "Final Z-coordinate: " << currentZ << std::endl;
-        break; // Exit loop after final distance print
-    }
-}
+                                // Calculate and print the distance of the hands from their initial positions
+                                if (initialLeftHandZ != -1.0f && initialRightHandZ != -1.0f) {
+                                    float leftHandDistance = std::abs(initialLeftHandZ - joints[JointType_HandLeft].Position.Z);
+                                    float rightHandDistance = std::abs(initialRightHandZ - joints[JointType_HandRight].Position.Z);
+                                    std::cout << "Left Hand Distance: " << leftHandDistance << " meters" << std::endl;
+                                    std::cout << "Right Hand Distance: " << rightHandDistance << " meters" << std::endl;
+                                }
 
                             }
                         }
                     }
+
+                    bodyFrame->Release();
                 }
-
-                // Show the live feed
                 cv::imshow("Kinect Skeleton", bgrMat);
-                cv::waitKey(1);  // Wait for a key press for 1 ms
             }
+
             delete[] colorBuffer;
+            colorFrame->Release();
+            frameDescription->Release();
         }
 
-        // Check if user pressed 'q' to quit
-        if (cv::waitKey(30) == 'q') {
-            break;
-        }
+        if (cv::waitKey(30) == 13) break;
     }
 
-    // Release resources
+    colorFrameReader->Release();
+    bodyFrameReader->Release();
+    coordinateMapper->Release();
+    colorSource->Release();
     sensor->Close();
+    sensor->Release();
+
     return 0;
 }
