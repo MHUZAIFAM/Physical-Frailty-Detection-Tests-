@@ -1,5 +1,5 @@
 // 6.5 to 1.5m----->5m
-//Font Colour Red, final code with additional datalogging function
+//Font Colour Red
 #include <iostream>
 #include <Kinect.h>
 #include <opencv2/opencv.hpp>
@@ -130,11 +130,28 @@ void processWalkingTest(float depth, std::string& timerMessage) {
         timerStoppedMessage = "Timer Stopped! Depth: " + std::to_string(depth).substr(0, 4) + " m " +
             "Time Taken: " + std::to_string(finalElapsedSeconds).substr(0, 5) + " s";
         std::cout << "Timer Stopped! Depth: " << depth << "\nTime: " << finalElapsedSeconds << " s" << std::endl;
+
+        // Log the walking test result
+        logWalkingSpeedTest(std::vector<double>{finalElapsedSeconds});
+
+        // Reset the test for the next round
+        testCompleted = true;
     }
 
     // Display live depth value
     liveDepthMessage = "Depth: " + std::to_string(depth).substr(0, 4) + " m";
+
+    // If the test has completed, reset the variables and flags for the next test
+    if (testCompleted) {
+        // Reset the timer and flags
+        timerStartedMessage = "";
+        timerStoppedMessage = "";
+        finalElapsedSeconds = 0.0f;
+        isTiming = false;
+        testCompleted = false;
+    }
 }
+
 int main() {
     // Initialize Kinect sensor
     IKinectSensor* kinectSensor = nullptr;
