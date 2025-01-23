@@ -1,4 +1,5 @@
-/ / 6 to 1----->5m
+// 6.5 to 1.5m----->5m
+//Font Colour Red
 #include <iostream>
 #include <Kinect.h>
 #include <opencv2/opencv.hpp>
@@ -53,7 +54,7 @@ float finalElapsedSeconds = 0.0f; // Store final elapsed time
 
 void processWalkingTest(float depth, std::string& timerMessage) {
     // Check for start condition (depth between 7.5m and 7.51m)
-    if (!isTiming && depth >= 6.0f && depth <= 6.2f) {
+    if (!isTiming && depth >= 6.5f && depth <= 6.7f) {
         isTiming = true;
         startTime = std::chrono::steady_clock::now();
         timerStartedMessage = "Timer Started! Depth: " + std::to_string(depth).substr(0, 4) + " m";
@@ -61,7 +62,7 @@ void processWalkingTest(float depth, std::string& timerMessage) {
     }
 
     // Check for stop condition (depth between 2.5m and 2.51m)
-    if (isTiming && depth >= 1.0f && depth <= 1.1f) {
+    if (isTiming && depth >= 1.5f && depth <= 1.6f) {
         endTime = std::chrono::steady_clock::now();
         isTiming = false;
 
@@ -183,21 +184,21 @@ int main() {
                         cv::Mat colorMat(colorHeight, colorWidth, CV_8UC4, colorBuffer.data());
 
                         // Display the messages
-                        cv::putText(colorMat, liveDepthMessage, cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 0), 2);
+                        cv::putText(colorMat, liveDepthMessage, cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
                         if (!timerStartedMessage.empty()) {
                             cv::putText(colorMat, timerStartedMessage, cv::Point(50, 100),
-                                cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255), 2);
+                                cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
                         }
                         if (!timerStoppedMessage.empty()) {
                             cv::putText(colorMat, timerStoppedMessage, cv::Point(50, 150),
-                                cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255), 2);
+                                cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0,0 , 255), 2);
                         }
                         if (isTiming) {
                             auto currentTime = std::chrono::steady_clock::now();
                             auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
                             float elapsedSeconds = elapsedTime / 1000.0f;
                             cv::putText(colorMat, "Timer: " + std::to_string(elapsedSeconds).substr(0, 5) + " s",
-                                cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 255, 255), 2);
+                                cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1.0, cv::Scalar(0, 0, 255), 2);
                         }
                         else if (finalElapsedSeconds > 0.0f) {
                             cv::putText(colorMat, "Final Time: " + std::to_string(finalElapsedSeconds).substr(0, 5) + " s",
