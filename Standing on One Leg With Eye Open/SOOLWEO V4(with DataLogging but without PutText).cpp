@@ -240,7 +240,7 @@ int main() {
                                 if (messagePrinted && isPersonStable && isTestReady && !isTestStarted)
                                 {
                                     cv::putText(bgrMat, "Test Ready", cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-                                    cv::putText(bgrMat, "Please Raise your dominant Foot", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+                                    cv::putText(bgrMat, "Please Raise your Right Foot", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
 
                                 }
                                 //if person has a dominant foot of right foot, then raises right foot first if timer > 70, test complete if timer < 70 raisess left foot first and then test is complete
@@ -260,7 +260,7 @@ int main() {
 
                                 else if (initialRightFootZ - joints[JointType_FootRight].Position.Z <= rightFootRaisedThresholdZ && rightFootRaised && isRightFootInAir && isTestStarted && !isTestCompleted) {
                                     // Stop the timer when the right foot touches the ground
-                                    
+
                                     rightFootEndTime = std::chrono::steady_clock::now();
                                     rightFootTimeElapsed = rightFootEndTime - rightFootStartTime;
                                     std::cout << "Right Foot Returned to Ground." << std::endl;
