@@ -25,8 +25,8 @@ float raisedBaseSpineX = 0.0f, raisedBaseSpineY = 0.0f, raisedBaseSpineZ = 0.0f;
 //arms rasied threshold
 float armsRaisedThresholdY = 0.1f;
 float armmovedthresholdX = 0.05f;
-float armmovedthresholdY = 0.1f;
-float armmovedthresholdZ = 0.1f;
+float armmovedthresholdY = 0.2f;
+float armmovedthresholdZ = 0.2f;
 
 
 //flags for the test
@@ -268,26 +268,30 @@ int main() {
 
                                 //now person has bend forward, now to calculate distance
                                 if (fabs(joints[JointType_HandLeft].Position.X - raisedLeftHandX) > armmovedthresholdX &&
-                                    fabs(joints[JointType_ElbowLeft].Position.Y - raisedElbowLeftY) <= armmovedthresholdY &&
                                     fabs(joints[JointType_ElbowLeft].Position.Z - raisedElbowLeftZ) <= armmovedthresholdZ &&
                                     testReady && messagePrinted && !FinalMaximumDistance)
                                 {
                                     testStarted = true;
                                     //now to calculate distance
-                                    Distance = sqrt(pow(raisedLeftHandX - joints[JointType_HandLeft].Position.X, 2) + pow(raisedLeftHandY - joints[JointType_HandLeft].Position.Y, 2)) * 100.0f;
-                                   
-									if (Distance > MaximumDistance )
+                                    Distance = sqrt(pow(raisedLeftHandX - joints[JointType_HandLeft].Position.X, 2) +
+                                                    pow(raisedLeftHandY - joints[JointType_HandLeft].Position.Y, 2) +
+                                                    pow(raisedLeftHandZ - joints[JointType_HandLeft].Position.Z, 2));
+
+                                    //display Distance on live feed
+                                    cv::putText(bgrMat, "Right Hand Distance: " + std::to_string(Distance) + " cm", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+									
+                                    if (Distance > MaximumDistance )
 									{
 										MaximumDistance = Distance;
                                         std::cout << "Distance: " << Distance << std::endl;
                                     }
-									
-                                    else if (Distance < MaximumDistance)
+									else if (Distance < MaximumDistance)
                                     {
                                         FinalMaximumDistance = true;
                                         testComplete = true;
                                     }
                                 }
+
                                 if (FinalMaximumDistance && testComplete)
                                 {
                                     //print the final Maximum Distance on CLI
