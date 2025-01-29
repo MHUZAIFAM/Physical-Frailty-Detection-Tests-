@@ -1,5 +1,4 @@
 //final perfect code
-//Functional Reach Test with Data logging and Visual Display
 #include <Kinect.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
@@ -120,8 +119,8 @@ float initialLeftHandY = 0.0f;
 
 //initial Position Retained Threshold, while retaining initial position, the arms should be within 15cm in range of initial coordinates
 float initialPositionHandsRetainedZ = 0.15f;
-float initialPositionHandsRetainedY = 0.05f;
-float initialPositionHandsRetainedX = 0.05f;
+float initialPositionHandsRetainedY = 0.1f;
+float initialPositionHandsRetainedX = 0.1f;
 
 //standing still with nonraised arms threshold for both hands
 float nonRaisedArmsStandingStillFinalThreshold = 0.05f;
@@ -379,8 +378,8 @@ int main() {
                                     // Calculate the distance of the hands from their initial positions
                                     currentRightHandZ = joints[JointType_HandRight].Position.Z;
                                     currentLeftHandZ = joints[JointType_HandLeft].Position.Z;
-                                    DistanceRightHand = std::abs(initialRightHandZ - currentRightHandZ);
-                                    DistanceLeftHand = std::abs(initialLeftHandZ - currentLeftHandZ);
+                                    DistanceRightHand = (initialRightHandZ - currentRightHandZ);
+                                    DistanceLeftHand = (initialLeftHandZ - currentLeftHandZ);
 
                                     std::cout << "Right Hand Distance: " << (DistanceRightHand) * 100.0f << " centimeters" << std::endl;
                                     std::cout << "Left Hand Distance: " << DistanceLeftHand * 100.0f << " centimeters" << std::endl;
