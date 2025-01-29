@@ -49,6 +49,7 @@ float leftFootRaisedThresholdZ = 0.05f;
 float rightFootElapsedTime = 0.0f;
 float leftFootElapsedTime = 0.0f;
 
+
 //DataLogging Function
 // Function to log the standing time for both feet
 void logStandingOnOneLegTest(double rightFootTime, double leftFootTime) {
@@ -252,7 +253,7 @@ int main() {
                                 //if person has a dominant foot of right foot, then raises right foot first if timer > 70, test complete if timer < 70 raisess left foot first and then test is complete
                                 // IN CASE IF THE DOMINANT FOOT WAS RIGHT FOOT
                                 //first Right Foot is raised
-                                if (std::abs(initialRightFootZ - joints[JointType_FootRight].Position.Z) > rightFootRaisedThresholdZ && !rightFootRaised && !leftFootRaised && !isTestStarted) {
+                                if (fabs(initialRightFootZ - joints[JointType_FootRight].Position.Z) > rightFootRaisedThresholdZ && !rightFootRaised && !leftFootRaised && !isTestStarted && isPersonStable && messagePrinted) {
                                     rightFootRaised = true;
                                     isTestStarted = true;
                                     std::cout << "Test Started" << std::endl;
@@ -264,7 +265,7 @@ int main() {
                                     isRightFootInAir = true;
                                 }
 
-                                else if (std::abs(initialRightFootZ - joints[JointType_FootRight].Position.Z) <= rightFootRaisedThresholdZ && rightFootRaised && isRightFootInAir && isTestStarted && !isTestCompleted) {
+                                else if (fabs(initialRightFootZ - joints[JointType_FootRight].Position.Z) <= rightFootRaisedThresholdZ && rightFootRaised && isRightFootInAir && isTestStarted && !isTestCompleted && isPersonStable && messagePrinted) {
                                     // Stop the timer when the right foot touches the ground
 
                                     rightFootEndTime = std::chrono::steady_clock::now();
@@ -285,7 +286,7 @@ int main() {
                                     isRightFootInAir = false;
                                 }
                                 //then left foot is raised
-                                if (std::abs(initialLeftFootZ - joints[JointType_FootLeft].Position.Z) > leftFootRaisedThresholdZ && !leftFootRaised && rightFootRaised && isTestStarted && !isTestCompleted) {
+                                if (fabs(initialLeftFootZ - joints[JointType_FootLeft].Position.Z) > leftFootRaisedThresholdZ && !leftFootRaised && rightFootRaised && isTestStarted && !isTestCompleted && isPersonStable && messagePrinted) {
                                     leftFootRaised = true;
                                     std::cout << "Left Foot Raised" << std::endl;
                                     std::cout << "Timer Started for Left Foot" << std::endl;
@@ -295,7 +296,7 @@ int main() {
                                     isLeftFootInAir = true;
                                 }
                                 // Condition when the left foot touches the ground (timer stops)
-                                else if (std::abs(initialLeftFootZ - joints[JointType_FootLeft].Position.Z) <= leftFootRaisedThresholdZ && leftFootRaised && isLeftFootInAir && isTestStarted && !isTestCompleted) {
+                                else if (fabs(initialLeftFootZ - joints[JointType_FootLeft].Position.Z) <= leftFootRaisedThresholdZ && leftFootRaised && isLeftFootInAir && isTestStarted && !isTestCompleted && isPersonStable && messagePrinted) {
                                     // Stop the timer when the left foot touches the ground
                                     leftFootEndTime = std::chrono::steady_clock::now();
                                     leftFootTimeElapsed = leftFootEndTime - leftFootStartTime;
@@ -313,6 +314,13 @@ int main() {
                                     rightFootElapsedTime = rightFootTimeElapsed.count();
                                     leftFootElapsedTime = leftFootTimeElapsed.count();
                                     logStandingOnOneLegTest(rightFootElapsedTime, leftFootElapsedTime);
+                                }
+                                if (isTestCompleted)
+                                {
+									//put text to display test completed
+									cv::putText(bgrMat, "Test Completed", cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+									cv::putText(bgrMat, "Right Foot Time: " + std::to_string(rightFootElapsedTime), cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+									cv::putText(bgrMat, "Left Foot Time: " + std::to_string(leftFootElapsedTime), cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
                                 }
 
                             }
