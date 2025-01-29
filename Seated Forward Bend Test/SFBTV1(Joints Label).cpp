@@ -2,6 +2,36 @@
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <vector>
+#include <deque> // For stability history tracking
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include <string>
+using namespace std;
+
+// Constants for stability detection
+const int stabilityFramesThreshold = 20; // Number of frames to check for stability
+const float stabilityYThreshold = 0.02f; // Y-coordinate fluctuation threshold for stability
+
+// Initial Z-coordinate values for left hand, mid spine, and base spine (assuming -1 is invalid/uninitialized)
+float initialLeftHandZ = -1.0f, initialMidSpineZ = -1.0f, initialBaseSpineZ = -1.0f;
+
+// Deques to store Y-coordinate history for stability detection
+std::deque<float> leftHandYHistory, midSpineYHistory, baseSpineYHistory;
+
+// Variables to track Y-coordinates of joints in previous frames
+float lastLeftHandY = -1.0f, lastMidSpineY = -1.0f, lastBaseSpineY = -1.0f;
+
+int stabilityFrames = 0; // To track how many frames the joints are stable
+
+// Function to check stability
+bool isStable(const std::deque<float>& history, float threshold) {
+    if (history.size() < stabilityFramesThreshold) return false;
+    float minVal = *std::min_element(history.begin(), history.end());
+    float maxVal = *std::max_element(history.begin(), history.end());
+    return (maxVal - minVal) <= threshold;
+}
+
 
 int main() {
     // Initialize Kinect Sensor, readers, and coordinate mapper
@@ -25,9 +55,7 @@ int main() {
     sensor->get_BodyFrameSource(&bodySource);
     bodySource->OpenReader(&bodyFrameReader);
 
-    cv::namedWindow("Kinect Skeleton", cv::WINDOW_AUTOSIZE);
-
-    bool messagePrinted = false; // Flag to track if message has been printed
+    cv::namedWindow("Joint Labels", cv::WINDOW_AUTOSIZE);
 
     // Frame loop
     while (true) {
@@ -65,67 +93,59 @@ int main() {
                             body->get_IsTracked(&isTracked);
 
                             if (isTracked) {
-                                // Print messages only once when a person is detected for the first time
-                                if (!messagePrinted) {
-                                    std::cout << "Test Ready" << std::endl;
-                                    std::cout << "Please Raise both of your arms" << std::endl;
-                                    messagePrinted = true; // Set the flag to true to prevent repeated printing
-                                }
-
                                 Joint joints[JointType_Count];
                                 body->GetJoints(_countof(joints), joints);
 
-                                // Draw circles for tracked joints (Hands, Knees, and Spine)
-                                for (int j = 0; j < JointType_Count; j++) {
-                                    if (joints[j].TrackingState == TrackingState_Tracked &&
-                                        (j == JointType_HandLeft || j == JointType_HandRight ||
-                                            j == JointType_KneeLeft || j == JointType_KneeRight ||
-                                            j == JointType_SpineBase || j == JointType_SpineMid)) {
+                                // List of joints to label
+                                const int jointsToLabel[] = {
+                                    JointType_HandLeft,
+                                    JointType_ElbowLeft,
+                                    JointType_SpineMid,
+                                    JointType_SpineBase
+                                };
 
+                                const char* jointLabels[] = {
+                                    "Left Hand",
+                                    "Left Elbow",
+                                    "Mid Spine",
+                                    "Base Spine"
+                                };
+
+                                // Draw and label the selected joints
+                                for (size_t j = 0; j < sizeof(jointsToLabel) / sizeof(jointsToLabel[0]); j++) {
+                                    int jointType = jointsToLabel[j];
+
+                                    if (joints[jointType].TrackingState == TrackingState_Tracked) {
+                                        // Use the raw camera space coordinates (meters)
+                                        float x = joints[jointType].Position.X;
+                                        float y = joints[jointType].Position.Y;
+                                        float z = joints[jointType].Position.Z;
+
+                                        // Convert camera space to color space for visualization
                                         ColorSpacePoint colorPoint;
-                                        coordinateMapper->MapCameraPointToColorSpace(joints[j].Position, &colorPoint);
+                                        coordinateMapper->MapCameraPointToColorSpace(joints[jointType].Position, &colorPoint);
+                                        int cx = static_cast<int>(colorPoint.X);
+                                        int cy = static_cast<int>(colorPoint.Y);
 
-                                        int x = static_cast<int>(colorPoint.X);
-                                        int y = static_cast<int>(colorPoint.Y);
+                                        // Ensure pixel coordinates are within bounds
+                                        if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                                            cv::circle(bgrMat, cv::Point(cx, cy), 10, cv::Scalar(255, 0, 0), -1); // Draw a circle
+                                            cv::putText(bgrMat, jointLabels[j], cv::Point(cx + 10, cy), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
 
-                                        if (x >= 0 && x < width && y >= 0 && y < height) {
-                                            cv::circle(bgrMat, cv::Point(x, y), 10, cv::Scalar(0, 0, 255), -1); // Draw a circle with radius 10
-
-                                            // Add text labels for different joints
-                                            if (j == JointType_HandLeft) {
-                                                cv::putText(bgrMat, "Left Hand", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
-                                            else if (j == JointType_HandRight) {
-                                                cv::putText(bgrMat, "Right Hand", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
-                                            else if (j == JointType_KneeLeft) {
-                                                cv::putText(bgrMat, "Left Knee", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
-                                            else if (j == JointType_KneeRight) {
-                                                cv::putText(bgrMat, "Right Knee", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
-                                            else if (j == JointType_SpineBase) {
-                                                cv::putText(bgrMat, "Base Spine", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
-                                            else if (j == JointType_SpineMid) {
-                                                cv::putText(bgrMat, "Mid Spine", cv::Point(x + 10, y), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
-                                                cv::putText(bgrMat, "X: " + std::to_string(joints[j].Position.X) + " Y: " + std::to_string(joints[j].Position.Y) + " Z: " + std::to_string(joints[j].Position.Z), cv::Point(x + 10, y + 20), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
-                                            }
+                                            // Display the decimal camera space coordinates
+                                            cv::putText(bgrMat, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z),
+                                                cv::Point(cx + 10, cy + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
                                         }
                                     }
                                 }
+
                             }
                         }
                     }
 
                     bodyFrame->Release();
                 }
-                cv::imshow("Kinect Skeleton", bgrMat);
+                cv::imshow("Joint Labels", bgrMat);
             }
 
             delete[] colorBuffer;
