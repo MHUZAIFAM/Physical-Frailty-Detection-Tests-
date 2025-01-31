@@ -17,20 +17,18 @@ float nonRaisedMidSpineX = 0.0f, nonRaisedMidSpineY = 0.0f, nonRaisedMidSpineZ =
 float nonRaisedBaseSpineX = 0.0f, nonRaisedBaseSpineY = 0.0f, nonRaisedBaseSpineZ = 0.0f;
 
 //variables for Raised Arms Joint Coordinates
-float raisedLeftHandX = 0.0f, raisedLeftHandY = 0.0f, raisedLeftHandZ = 0.0f;   
+float raisedLeftHandX = 0.0f, raisedLeftHandY = 0.0f, raisedLeftHandZ = 0.0f;
 float raisedElbowLeftX = 0.0f, raisedElbowLeftY = 0.0f, raisedElbowLeftZ = 0.0f;
 float raisedMidSpineX = 0.0f, raisedMidSpineY = 0.0f, raisedMidSpineZ = 0.0f;
 float raisedBaseSpineX = 0.0f, raisedBaseSpineY = 0.0f, raisedBaseSpineZ = 0.0f;
 
 //arms rasied threshold
 float armsRaisedThresholdY = 0.1f;
-float armmovedthresholdX = 0.05f;
+float armmovedthresholdX = 0.2f;
 float armmovedthresholdY = 0.2f;
-float armmovedthresholdZ = 0.2f;
+float armmovedthresholdZ = 0.05f;
+float initialPostureThreshold = 0.3f;
 
-
-//initial positio retained threshold
-float initialPositionRetainedThresholdX = 0.2f;
 
 //flags for the test
 bool testStarted = false;
@@ -38,11 +36,11 @@ bool testReady = false;
 bool armsRaised = false;
 bool messagePrinted = false;
 bool isPersonStable = false;
-bool isPersonStraight = false;   
+bool isPersonStraight = false;
 bool FinalMaximumDistance = false;
 bool testComplete = false;
-bool initialPositionRetained = false;
-bool armsputdown = false;
+bool onetimereading = false;
+bool initialPostureretain = false;
 
 //variable distance
 float Distance = 0.0f;
@@ -51,7 +49,7 @@ float ElbowDistance = 0.0f;
 float ElbowMaximumDistance = 0.0f;
 
 // Constants for stability detection
-const int stabilityFramesThreshold = 20; // Number of frames to check for stability
+const int stabilityFramesThreshold = 10; // Number of frames to check for stability
 const float stabilityYThreshold = 0.02f; // Y-coordinate fluctuation threshold for stability
 
 // Initial Z-coordinate values for left hand, mid spine, and base spine (assuming -1 is invalid/uninitialized)
@@ -129,6 +127,7 @@ int main() {
                     IBody* bodies[BODY_COUNT] = { 0 };
                     hrBody = bodyFrame->GetAndRefreshBodyData(_countof(bodies), bodies);
 
+                    
                     for (int i = 0; i < BODY_COUNT; ++i) {
                         IBody* body = bodies[i];
                         if (body) {
@@ -146,10 +145,10 @@ int main() {
                                     JointType_SpineMid,
                                     JointType_SpineBase
                                 };
-
+                                
                                 const char* jointLabels[] = {
                                     "Left Hand",
-									"Left Elbow",
+                                    "Left Elbow",
                                     "Mid Spine",
                                     "Base Spine"
                                 };
@@ -198,30 +197,30 @@ int main() {
                                 bool baseSpineStable = isStable(baseSpineYHistory, stabilityYThreshold);
 
                                 // Condition to check when joints are stable
-                                if (leftHandStable && midSpineStable && baseSpineStable && !messagePrinted && !testReady && !testStarted && !armsRaised) {
+                                if (leftHandStable && midSpineStable && baseSpineStable && !messagePrinted && !testReady && !testStarted && !armsRaised && joints[JointType_SpineBase].Position.Y <=0.05f){
                                     messagePrinted = true; // Set the flag to prevent repeated printing
                                     std::cout << "Test Ready" << std::endl;
-									std::cout << "Person Stable" << std::endl;
+                                    std::cout << "Person Stable" << std::endl;
                                     std::cout << "Please Raise your arms and sit straight" << std::endl;
                                     //print non raised arms coordinates on CLI for arm elbow and 
-									nonRaisedLeftHandX = joints[JointType_HandLeft].Position.X;
-									nonRaisedLeftHandY = joints[JointType_HandLeft].Position.Y;
-									nonRaisedLeftHandZ = joints[JointType_HandLeft].Position.Z;
-									nonRaisedElbowLeftX = joints[JointType_ElbowLeft].Position.X;
-									nonRaisedElbowLeftY = joints[JointType_ElbowLeft].Position.Y;
-									nonRaisedElbowLeftZ = joints[JointType_ElbowLeft].Position.Z;
-									nonRaisedMidSpineX = joints[JointType_SpineMid].Position.X;
-									nonRaisedMidSpineY = joints[JointType_SpineMid].Position.Y;
-									nonRaisedMidSpineZ = joints[JointType_SpineMid].Position.Z;
-									nonRaisedBaseSpineX = joints[JointType_SpineBase].Position.X;
-									nonRaisedBaseSpineY = joints[JointType_SpineBase].Position.Y;
-									nonRaisedBaseSpineZ = joints[JointType_SpineBase].Position.Z;
+                                    nonRaisedLeftHandX = joints[JointType_HandLeft].Position.X;
+                                    nonRaisedLeftHandY = joints[JointType_HandLeft].Position.Y;
+                                    nonRaisedLeftHandZ = joints[JointType_HandLeft].Position.Z;
+                                    nonRaisedElbowLeftX = joints[JointType_ElbowLeft].Position.X;
+                                    nonRaisedElbowLeftY = joints[JointType_ElbowLeft].Position.Y;
+                                    nonRaisedElbowLeftZ = joints[JointType_ElbowLeft].Position.Z;
+                                    nonRaisedMidSpineX = joints[JointType_SpineMid].Position.X;
+                                    nonRaisedMidSpineY = joints[JointType_SpineMid].Position.Y;
+                                    nonRaisedMidSpineZ = joints[JointType_SpineMid].Position.Z;
+                                    nonRaisedBaseSpineX = joints[JointType_SpineBase].Position.X;
+                                    nonRaisedBaseSpineY = joints[JointType_SpineBase].Position.Y;
+                                    nonRaisedBaseSpineZ = joints[JointType_SpineBase].Position.Z;
 
-									//print non raised arms coordinates on CLI for arm elbow and spine
-									std::cout << "Left Hand: " << nonRaisedLeftHandX << ", " << nonRaisedLeftHandY << ", " << nonRaisedLeftHandZ << std::endl;
-									std::cout << "Left Elbow: " << nonRaisedElbowLeftX << ", " << nonRaisedElbowLeftY << ", " << nonRaisedElbowLeftZ << std::endl;
-									std::cout << "Mid Spine: " << nonRaisedMidSpineX << ", " << nonRaisedMidSpineY << ", " << nonRaisedMidSpineZ << std::endl;
-									std::cout << "Base Spine: " << nonRaisedBaseSpineX << ", " << nonRaisedBaseSpineY << ", " << nonRaisedBaseSpineZ << std::endl;
+                                    //print non raised arms coordinates on CLI for arm elbow and spine
+                                    std::cout << "Left Hand: " << nonRaisedLeftHandX << ", " << nonRaisedLeftHandY << ", " << nonRaisedLeftHandZ << std::endl;
+                                    std::cout << "Left Elbow: " << nonRaisedElbowLeftX << ", " << nonRaisedElbowLeftY << ", " << nonRaisedElbowLeftZ << std::endl;
+                                    std::cout << "Mid Spine: " << nonRaisedMidSpineX << ", " << nonRaisedMidSpineY << ", " << nonRaisedMidSpineZ << std::endl;
+                                    std::cout << "Base Spine: " << nonRaisedBaseSpineX << ", " << nonRaisedBaseSpineY << ", " << nonRaisedBaseSpineZ << std::endl;
                                     testReady = true;
                                 }
 
@@ -235,111 +234,87 @@ int main() {
 
                                 if (fabs(joints[JointType_ElbowLeft].Position.Y - joints[JointType_HandLeft].Position.Y) <= armsRaisedThresholdY &&
                                     messagePrinted && testReady && !testStarted &&
-                                    leftHandStable &&  midSpineStable && baseSpineStable && !armsRaised)
+									leftHandStable && midSpineStable && baseSpineStable && !armsRaised )
                                 {
-									armsRaised = true;
-									std::cout << "Arms Raised" << std::endl;
-									//print raised arms coordinates on CLI for arm elbow and spine
-									raisedLeftHandX = joints[JointType_HandLeft].Position.X;
-									raisedLeftHandY = joints[JointType_HandLeft].Position.Y;
-									raisedLeftHandZ = joints[JointType_HandLeft].Position.Z;
-									raisedElbowLeftX = joints[JointType_ElbowLeft].Position.X;
-									raisedElbowLeftY = joints[JointType_ElbowLeft].Position.Y;
-									raisedElbowLeftZ = joints[JointType_ElbowLeft].Position.Z;
-									raisedMidSpineX = joints[JointType_SpineMid].Position.X;
-									raisedMidSpineY = joints[JointType_SpineMid].Position.Y;
-									raisedMidSpineZ = joints[JointType_SpineMid].Position.Z;
-									raisedBaseSpineX = joints[JointType_SpineBase].Position.X;
-									raisedBaseSpineY = joints[JointType_SpineBase].Position.Y;
-									raisedBaseSpineZ = joints[JointType_SpineBase].Position.Z;
+                                    armsRaised = true;
+                                    std::cout << "Arms Raised" << std::endl;
+                                    //print raised arms coordinates on CLI for arm elbow and spine
+                                    raisedLeftHandX = joints[JointType_HandLeft].Position.X;
+                                    raisedLeftHandY = joints[JointType_HandLeft].Position.Y;
+                                    raisedLeftHandZ = joints[JointType_HandLeft].Position.Z;
+                                    raisedElbowLeftX = joints[JointType_ElbowLeft].Position.X;
+                                    raisedElbowLeftY = joints[JointType_ElbowLeft].Position.Y;
+                                    raisedElbowLeftZ = joints[JointType_ElbowLeft].Position.Z;
+                                    raisedMidSpineX = joints[JointType_SpineMid].Position.X;
+                                    raisedMidSpineY = joints[JointType_SpineMid].Position.Y;
+                                    raisedMidSpineZ = joints[JointType_SpineMid].Position.Z;
+                                    raisedBaseSpineX = joints[JointType_SpineBase].Position.X;
+                                    raisedBaseSpineY = joints[JointType_SpineBase].Position.Y;
+                                    raisedBaseSpineZ = joints[JointType_SpineBase].Position.Z;
 
-									//print the raised arms coordinates on CLI for arm elbow and spine
-									std::cout << "Left Hand: " << raisedLeftHandX << ", " << raisedLeftHandY << ", " << raisedLeftHandZ << std::endl;
-									std::cout << "Left Elbow: " << raisedElbowLeftX << ", " << raisedElbowLeftY << ", " << raisedElbowLeftZ << std::endl;
-									std::cout << "Mid Spine: " << raisedMidSpineX << ", " << raisedMidSpineY << ", " << raisedMidSpineZ << std::endl;
-									std::cout << "Base Spine: " << raisedBaseSpineX << ", " << raisedBaseSpineY << ", " << raisedBaseSpineZ << std::endl;
+                                    //print the raised arms coordinates on CLI for arm elbow and spine
+                                    std::cout << "Left Hand: " << raisedLeftHandX << ", " << raisedLeftHandY << ", " << raisedLeftHandZ << std::endl;
+                                    std::cout << "Left Elbow: " << raisedElbowLeftX << ", " << raisedElbowLeftY << ", " << raisedElbowLeftZ << std::endl;
+                                    std::cout << "Mid Spine: " << raisedMidSpineX << ", " << raisedMidSpineY << ", " << raisedMidSpineZ << std::endl;
+                                    std::cout << "Base Spine: " << raisedBaseSpineX << ", " << raisedBaseSpineY << ", " << raisedBaseSpineZ << std::endl;
                                 }
 
 
-								//put text test ready and arms raised on screen
+                                //put text test ready and arms raised on screen
                                 if (armsRaised && testReady && !testStarted)
                                 {
-									cv::putText(bgrMat, "Arms Raised", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									cv::putText(bgrMat, "Test Ready", cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									cv::putText(bgrMat, "Please sit straight", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+                                    cv::putText(bgrMat, "Arms Raised", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+                                    cv::putText(bgrMat, "Test Ready", cv::Point(50, 50), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+                                    cv::putText(bgrMat, "Please sit straight", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
                                     //after a while please bend forward
-									cv::putText(bgrMat, "After a while please bend forward", cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
+                                    cv::putText(bgrMat, "After a while please bend forward", cv::Point(50, 200), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
                                 }
 
                                 //now person has bend forward, now to calculate distance
-                                if (fabs(joints[JointType_HandLeft].Position.X - raisedLeftHandX) > armmovedthresholdX &&
-                                    fabs(joints[JointType_ElbowLeft].Position.Z - raisedElbowLeftZ) <= armmovedthresholdZ &&
+                                if (fabs(joints[JointType_HandLeft].Position.Z - raisedLeftHandZ) > armmovedthresholdZ &&
+                                    fabs(joints[JointType_ElbowLeft].Position.X - raisedElbowLeftX) <= armmovedthresholdX &&
                                     testReady && messagePrinted && !FinalMaximumDistance)
                                 {
                                     testStarted = true;
                                     //now to calculate distance
-                                    Distance = sqrt(pow(raisedLeftHandX - joints[JointType_HandLeft].Position.X, 2) +
-                                                    pow(raisedLeftHandY - joints[JointType_HandLeft].Position.Y, 2) +
-                                                    pow(raisedLeftHandZ - joints[JointType_HandLeft].Position.Z, 2));
+                                    /*Distance = sqrt(pow(raisedLeftHandX - joints[JointType_HandLeft].Position.X, 2) +
+                                        pow(raisedLeftHandY - joints[JointType_HandLeft].Position.Y, 2) +
+                                        pow(raisedLeftHandZ - joints[JointType_HandLeft].Position.Z, 2)) * 100.0f;*/
 
+                                    Distance = (raisedLeftHandZ - joints[JointType_HandLeft].Position.Z)*100.0f;
                                     //display Distance on live feed
                                     cv::putText(bgrMat, "Right Hand Distance: " + std::to_string(Distance) + " cm", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									
-                                    if (Distance > MaximumDistance )
-									{
-										MaximumDistance = Distance;
+
+                                    if (Distance > MaximumDistance)
+                                    {
+                                        MaximumDistance = Distance;
                                         std::cout << "Distance: " << Distance << std::endl;
                                     }
-									else if (Distance < MaximumDistance)
+                                    else if (Distance < MaximumDistance)
                                     {
                                         FinalMaximumDistance = true;
-                                        
+                                        //initialPostureretain= true;
                                     }
                                 }
 
-                                if (FinalMaximumDistance)
+                                if (FinalMaximumDistance && !initialPostureretain && !onetimereading && !testComplete)
                                 {
                                     //print the final Maximum Distance on CLI
                                     std::cout << "Distance Covered by Hand: " << MaximumDistance << std::endl;
-								}
-								if (FinalMaximumDistance && !initialPositionRetained)
-								{
-									cv::putText(bgrMat, "Distance Covered by Hand: " + std::to_string(MaximumDistance) + " cm", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									//dipplay text to move hands back to the initial position
-									cv::putText(bgrMat, "Move your hands back to the initial position", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-								}
-                                if (fabs(joints[JointType_HandLeft].Position.X - raisedLeftHandX) <= initialPositionRetainedThresholdX&&
-                                    FinalMaximumDistance && !testComplete && !initialPositionRetained)
-                                {
-									initialPositionRetained = true;
-									std::cout << "Initial Position Retained" << std::endl;
-									//print the initial position retained on CLI
-									std::cout << "Left Hand: " << joints[JointType_HandLeft].Position.X << ", " << joints[JointType_HandLeft].Position.Y << ", " << joints[JointType_HandLeft].Position.Z << std::endl;
-									std::cout << "Left Elbow: " << joints[JointType_ElbowLeft].Position.X << ", " << joints[JointType_ElbowLeft].Position.Y << ", " << joints[JointType_ElbowLeft].Position.Z << std::endl;
-									std::cout << "Mid Spine: " << joints[JointType_SpineMid].Position.X << ", " << joints[JointType_SpineMid].Position.Y << ", " << joints[JointType_SpineMid].Position.Z << std::endl;
-									std::cout << "Base Spine: " << joints[JointType_SpineBase].Position.X << ", " << joints[JointType_SpineBase].Position.Y << ", " << joints[JointType_SpineBase].Position.Z << std::endl;
+                                    onetimereading = true;
 
                                 }
-								if (initialPositionRetained && !testComplete)
-								{
-									cv::putText(bgrMat, "Initial Position Retained", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									cv::putText(bgrMat, "Pleae put your hands down", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-							    }
-                                if (fabs(joints[JointType_HandLeft].Position.Y - joints[JointType_ElbowLeft].Position.Y) <= armsRaisedThresholdY && initialPositionRetained && !testComplete)
+
+
+                                if (raisedLeftHandZ - joints[JointType_HandLeft].Position.Z <= initialPostureThreshold && FinalMaximumDistance && !initialPostureretain && !testComplete && joints[JointType_SpineBase].Position.Y <= 0.0f)
                                 {
+									std::cout << "Test completed Please retain your initial posture" << std::endl;
+									initialPostureretain = true;
 									testComplete = true;
-									std::cout << "Test Complete" << std::endl;
-									//print Distance on CLI
-									std::cout << "Distance Covered by Hand: " << MaximumDistance << std::endl;
-							    }
-                                if (testComplete)
-                                {
-									cv::putText(bgrMat, "Test Complete", cv::Point(50, 100), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
-									cv::putText(bgrMat, "Distance Covered by Hand: " + std::to_string(MaximumDistance) + " cm", cv::Point(50, 150), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 255), 2);
                                 }
-
-                                
+                                break;
                             }
+
                         }
                     }
 
