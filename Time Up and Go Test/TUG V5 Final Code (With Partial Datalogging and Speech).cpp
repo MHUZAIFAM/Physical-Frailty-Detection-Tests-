@@ -1,3 +1,5 @@
+//set the data logging function and break/continue
+
 #include <Kinect.h>
 #include <opencv2/opencv.hpp>
 #include <iostream>
