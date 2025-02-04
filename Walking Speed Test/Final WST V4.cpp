@@ -1,5 +1,6 @@
 // 6.5 to 1.5m----->5m
 //Font Colour Red
+//camera height at 57cm and it doesnt have data logging 
 #include <iostream>
 #include <Kinect.h>
 #include <opencv2/opencv.hpp>
