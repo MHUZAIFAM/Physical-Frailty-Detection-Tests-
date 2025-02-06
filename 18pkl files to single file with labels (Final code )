@@ -1,0 +1,86 @@
+import pandas as pd
+import joblib
+
+
+# Load the test dataset
+file_path = "D:\\HAAS PROJECT\\Documents\\Physical_Frailty_Dataset_Kyrgyzstan.xlsx"  # Replace with your dataset path
+data = pd.read_excel(file_path)
+
+# Extract relevant columns for all 6 tests + Age & Gender
+test_data = {
+    "SFB": data[["Seated Forward Bench Test (cm)", "Age", "Gender"]],
+    "FRT": data[["Functional Reach Test (cm)", "Age", "Gender"]],
+    "TUG": data[["Time Up and Go Test (s)", "Age", "Gender"]],
+    "WS": data[["Walking Speed Test (s)", "Age", "Gender"]],
+    "GS": data[["Grip Strength (kg)", "Age", "Gender"]],
+    "SOOLWEO": data[["Standing on One Leg with Eye Open (s)", "Age", "Gender"]]
+}
+
+# Encode Gender column (convert 'Male' -> 0, 'Female' -> 1)
+for test in test_data:
+    test_data[test]["Gender"] = test_data[test]["Gender"].map({"Male": 0, "Female": 1})
+
+# Load saved scalers and label encoders
+scalers = {
+    "SFB": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_SFB.pkl"),
+    "FRT": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_FRT.pkl"),
+    "TUG": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_TUG.pkl"),
+    "WS": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_WS.pkl"),
+    "GS": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_GS.pkl"),
+    "SOOLWEO": joblib.load("C:\\Users\\DELL\\Desktop\\Scaler_SOOLWEO.pkl"),
+}
+
+label_encoders = {
+    "SFB": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_SFB.pkl"),
+    "FRT": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_FRT.pkl"),
+    "TUG": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_TUG.pkl"),
+    "WS": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_WS.pkl"),
+    "GS": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_GS.pkl"),
+    "SOOLWEO": joblib.load("C:\\Users\\DELL\\Desktop\\Label_Encoder_SOOLWEO.pkl"),
+}
+
+# Load best models for all tests
+models = {
+    "SFB": joblib.load('C:\\Users\\DELL\\Desktop\\Random_Forest_SFB.pkl'),
+    "FRT": joblib.load('C:\\Users\\DELL\\Desktop\\K-Nearest_Neighbors_FRT.pkl'),
+    "TUG": joblib.load('C:\\Users\\DELL\\Desktop\\K-Nearest_Neighbors_TUG.pkl'),
+    "WS": joblib.load('C:\\Users\\DELL\\Desktop\\Random_Forest_WS.pkl'),
+    "GS": joblib.load('C:\\Users\\DELL\\Desktop\\XGBoost_GS.pkl'),
+    "SOOLWEO": joblib.load('C:\\Users\\DELL\\Desktop\\Random_Forest_SOOLWEO.pkl'),
+}
+
+# Align columns with the scaler expectations
+for test in test_data:
+    test_data[test] = test_data[test].reindex(columns=scalers[test].feature_names_in_, fill_value=0)
+
+# Standardize the test data
+test_data_scaled = {test: scalers[test].transform(test_data[test]) for test in test_data}
+
+# Initialize a DataFrame for storing predictions
+predictions_df = data.copy()
+
+# Initialize computational costs dictionary
+computational_costs = {}
+
+# Predict for each test and store results
+for test_name, model in models.items():
+    start_time = time.time()
+    batch_predictions = model.predict(test_data_scaled[test_name])  # Predict
+    end_time = time.time()
+
+    # Convert numerical predictions to original labels
+    predictions_df[f"{test_name} Prediction"] = label_encoders[test_name].inverse_transform(batch_predictions)
+
+    # Measure computational cost
+    computational_costs[test_name] = {
+        "Time per example (average)": (end_time - start_time) / len(test_data[test_name]),
+        "Total time (whole dataset)": end_time - start_time
+    }
+
+# Save combined predictions
+output_file_path = "C:\\Users\\DELL\\Desktop\\Combined_Frailty_Predictions.xlsx"
+predictions_df.to_excel(output_file_path, index=False)
+
+
+
+print(f"\nPredictions saved to: {output_file_path}")
