@@ -14,7 +14,7 @@
 
 
 void logFunctionalReachTest(const std::vector<double>& rightHandDistances, const std::vector<double>& leftHandDistances) {
-    std::string filename = "Functional_Reach_Test_Results 1.csv";
+    std::string filename = "Functional_Reach_Test_Results_1.csv";
 
     std::ofstream outfile(filename, std::ios::trunc);  // Open file in truncate mode (overwrite)
     if (!outfile.is_open()) {
