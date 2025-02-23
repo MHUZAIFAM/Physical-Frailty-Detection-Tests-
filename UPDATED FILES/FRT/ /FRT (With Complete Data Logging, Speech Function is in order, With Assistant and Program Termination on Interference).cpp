@@ -1,0 +1,724 @@
+//final perfect code
+#include <Kinect.h>
+#include <opencv2/opencv.hpp>
+#include <iostream>
+#include <vector>
+#include <deque> // For stability history tracking
+#include <fstream>
+#include <vector>
+#include <sstream>
+#include <string>
+#include<sapi.h>
+#include <iomanip>
+
+using namespace std;
+
+//DataLogging Function
+// DataLogging Function
+void logFunctionalReachTest(const std::vector<double>& rightHandDistances, const std::vector<double>& leftHandDistances) {
+    std::string filename = "Functional_Reach_Test_Results.csv";
+    std::ifstream infile(filename);
+    std::ofstream outfile;
+
+    // Check if the file exists
+    bool fileExists = infile.good();
+    infile.close();
+
+    // Open the file in append mode
+    outfile.open(filename, std::ios::app);
+
+    // Write the header if the file is new
+    if (!fileExists) {
+        outfile << "Functional Reach Test (cm) Right Hand,Functional Reach Test (cm) Left Hand,Functional Reach Test (cm)\n";
+    }
+
+    // Compute the maximum distances
+    double maxRightHand = *std::max_element(rightHandDistances.begin(), rightHandDistances.end()) * 100.0;
+    double maxLeftHand = *std::max_element(leftHandDistances.begin(), leftHandDistances.end()) * 100.0;
+    double maxOverall = std::max(maxRightHand, maxLeftHand);
+
+    // Write data to file
+    outfile << maxRightHand << "," << maxLeftHand << "," << maxOverall << "\n";
+
+    outfile.close();
+}
+
+
+//speaking function
+void speak(const std::string& text) {
+    std::thread([text]() {
+        ISpVoice* pVoice = NULL;
+
+        if (FAILED(::CoInitialize(NULL))) {
+            std::cerr << "Failed to initialize COM library." << std::endl;
+            return;
+        }
+
+        HRESULT hr = CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, (void**)&pVoice);
+        if (SUCCEEDED(hr)) {
+            wchar_t wtext[1024];
+            size_t convertedChars = 0;
+            mbstowcs_s(&convertedChars, wtext, sizeof(wtext) / sizeof(wchar_t), text.c_str(), _TRUNCATE);
+
+            // Use SPF_ASYNC for non-blocking speech
+            pVoice->Speak(wtext, SPF_ASYNC, NULL);
+
+            // Wait for speech to complete (optional, remove if unnecessary)
+            pVoice->WaitUntilDone(INFINITE);
+
+            pVoice->Release();
+            pVoice = NULL;
+        }
+        else {
+            std::cerr << "Failed to create voice instance." << std::endl;
+        }
+        CoUninitialize();
+        }).detach(); // Detach the thread so it runs independently
+}
+
+// Function to format float to 2 decimal places as string
+std::string formatDistance(float distance) {
+    std::ostringstream stream;
+    stream << std::fixed << std::setprecision(2) << (distance * 100.0f);
+    return stream.str();
+}
+
+
+// Constants for stability detection
+const int stabilityFramesThreshold = 20; // Number of frames to check for stability
+const float stabilityYThreshold = 0.02f; // Y-coordinate fluctuation threshold for stability
+
+float initialLeftHandZ = -1.0f, initialRightHandZ = -1.0f;
+float initialLeftElbowZ = -1.0f, initialRightElbowZ = -1.0f;
+
+// Deques to store Y-coordinate history for stability detection
+std::deque<float> leftHandYHistory, rightHandYHistory, leftElbowYHistory, rightElbowYHistory;
+
+float lastLeftHandY = -1.0f, lastRightHandY = -1.0f;
+float lastLeftElbowY = -1.0f, lastRightElbowY = -1.0f;
+
+int stabilityFrames = 0; // To track how many frames hands are stable
+float currentRightHandZ = 0.0f, currentLeftHandZ = 0.0f; // To store the current Z coordinates of the hands
+float DistanceRightHand = 0.0f;
+float DistanceLeftHand = 0.0f;
+float MaximumRightHandDistance = 0.0f;
+float MaximumLeftHandDistance = 0.0f;
+
+//Non raised elbow Y axis coordinates
+float nonRaisedElbowRightX = 0.0f;
+float nonRaisedElbowLeftX = 0.0f;
+float nonRaisedHandLeftY = 0.0f;
+float nonRaisedHandRightY = 0.0f;
+//arms raised threshold for both hands
+float armsRaisedThresholdRight = 0.05f;
+float armsRaisedThresholdLeft = 0.05f;
+//arms in line with elbow threshold
+float armsinlinewithelbow = 0.15f;
+
+// Z axis right and left hand threshold
+float ThresholdZ = 0.05f;
+
+//Right hand threshold
+float RightHandThreshold = 0.1f;
+
+//left Hand Threshold
+float LeftHandThreshold = 0.1f;
+
+//initial x and y coordinate variable for right hand
+float initialRightHandX = 0.0f;
+float initialRightHandY = 0.0f;
+
+//initial x and y coordinate variable for left hand
+float initialLeftHandX = 0.0f;
+float initialLeftHandY = 0.0f;
+
+//initial Position Retained Threshold, while retaining initial position, the arms should be within 15cm in range of initial coordinates
+float initialPositionHandsRetainedZ = 0.15f;
+float initialPositionHandsRetainedY = 0.1f;
+float initialPositionHandsRetainedX = 0.1f;
+
+//standing still with nonraised arms threshold for both hands
+float nonRaisedArmsStandingStillFinalThreshold = 0.05f;
+
+//Flags for the Functional Reach Test
+bool armsStable = false;               //Arms are Stable in any position
+bool armsRaised = false;               //Arms are Raised
+bool FinalMaximumDistance = false;     //Final Maximum Distance Achieved
+bool armsStablePrinted = false;        // Flag to print once when arms are stable
+bool testCompleted = false;            //Test Completed
+bool testStarted = false;              //Test Started
+bool initialPositionRetained = false;
+
+// Function to check stability
+bool isStable(const std::deque<float>& history, float threshold) {
+    if (history.size() < stabilityFramesThreshold) return false;
+    float minVal = *std::min_element(history.begin(), history.end());
+    float maxVal = *std::max_element(history.begin(), history.end());
+    return (maxVal - minVal) <= threshold;
+}
+
+int main() {
+    std::vector<double> person1TestDistances(4);
+    double MaximumRightHandDistance1 = 0.0;  // Test 1 right hand (in meters)
+    double MaximumLeftHandDistance1 = 0.0;   // Test 1 left hand (in meters)
+    double MaximumRightHandDistance2 = 0.0;  // Test 2 right hand (in meters)
+    double MaximumLeftHandDistance2 = 0.0;  // Test 2 left hand (in meters)
+
+    // Initialize Kinect Sensor, readers, and coordinate mapper
+    IKinectSensor* sensor = nullptr;
+    IColorFrameReader* colorFrameReader = nullptr;
+    IBodyFrameReader* bodyFrameReader = nullptr;
+    ICoordinateMapper* coordinateMapper = nullptr;
+
+    if (FAILED(GetDefaultKinectSensor(&sensor)) || !sensor) {
+        std::cerr << "Kinect sensor not found!" << std::endl;
+        return -1;
+    }
+    sensor->Open();
+    sensor->get_CoordinateMapper(&coordinateMapper);
+
+    IColorFrameSource* colorSource = nullptr;
+    sensor->get_ColorFrameSource(&colorSource);
+    colorSource->OpenReader(&colorFrameReader);
+
+    IBodyFrameSource* bodySource = nullptr;
+    sensor->get_BodyFrameSource(&bodySource);
+    bodySource->OpenReader(&bodyFrameReader);
+
+    cv::namedWindow("Functional Reach Test", cv::WINDOW_AUTOSIZE);
+
+    bool messagePrinted = false; // Flag to track if message has been printed
+
+    // Frame loop
+    while (true) {
+        IColorFrame* colorFrame = nullptr;
+        HRESULT hrColor = colorFrameReader->AcquireLatestFrame(&colorFrame);
+
+        if (SUCCEEDED(hrColor)) {
+            IFrameDescription* frameDescription = nullptr;
+            colorFrame->get_FrameDescription(&frameDescription);
+
+            int width, height;
+            frameDescription->get_Width(&width);
+            frameDescription->get_Height(&height);
+
+
+            UINT64 lockedTrackingID = 0;  // Stores the Tracking ID of the detected participant
+            bool participantLocked = false;  // Flag to indicate if a participant is locked
+
+
+            UINT bufferSize = width * height * 4;
+            BYTE* colorBuffer = new BYTE[bufferSize];
+            hrColor = colorFrame->CopyConvertedFrameDataToArray(bufferSize, colorBuffer, ColorImageFormat_Bgra);
+
+            float participantDepth = 0.0f;  // Store depth of locked participant
+            bool testInvalid = false;  // Flag to mark invalid test
+
+            if (SUCCEEDED(hrColor)) {
+                cv::Mat colorMat(height, width, CV_8UC4, colorBuffer);
+                cv::Mat bgrMat;
+                cv::cvtColor(colorMat, bgrMat, cv::COLOR_BGRA2BGR);
+
+                IBodyFrame* bodyFrame = nullptr;
+                HRESULT hrBody = bodyFrameReader->AcquireLatestFrame(&bodyFrame);
+
+                if (SUCCEEDED(hrBody)) {
+                    IBody* bodies[BODY_COUNT] = { 0 };
+                    hrBody = bodyFrame->GetAndRefreshBodyData(_countof(bodies), bodies);
+                    bool hiViDetected = false;
+                    cv::Rect participantRect;
+
+                    for (int i = 0; i < BODY_COUNT; ++i) {
+                        IBody* body = bodies[i];
+                        if (body) {
+                            BOOLEAN isTracked = false;
+                            body->get_IsTracked(&isTracked);
+
+                            if (isTracked) {
+                                UINT64 trackingID;
+                                body->get_TrackingId(&trackingID);
+
+                                // Lock the first valid participant
+                                if (!participantLocked && !hiViDetected) {
+                                    lockedTrackingID = trackingID;
+                                    participantLocked = true;
+                                }
+
+                                // Process only the locked participant
+                                if (participantLocked && trackingID == lockedTrackingID) {
+                                    Joint joints[JointType_Count];
+                                    body->GetJoints(_countof(joints), joints);
+
+                                    std::vector<cv::Point> jointPoints;
+                                    cv::Point shoulderLeft, shoulderRight, spineShoulder;
+                                    bool validROI = false;
+
+                                    for (int j = 0; j < JointType_Count; ++j) {
+                                        if (joints[j].TrackingState == TrackingState_Tracked) {
+                                            if (std::isnan(joints[j].Position.X) || std::isnan(joints[j].Position.Y) || std::isnan(joints[j].Position.Z)) {
+                                                continue;
+                                            }
+                                            if (joints[j].Position.Z > 4.5) {
+                                                continue;
+                                            }
+
+                                            ColorSpacePoint colorPoint;
+                                            coordinateMapper->MapCameraPointToColorSpace(joints[j].Position, &colorPoint);
+                                            int x = static_cast<int>(colorPoint.X);
+                                            int y = static_cast<int>(colorPoint.Y);
+
+                                            if (j == JointType_SpineShoulder) spineShoulder = cv::Point(x, y);
+                                            if (j == JointType_ShoulderLeft) shoulderLeft = cv::Point(x, y);
+                                            if (j == JointType_ShoulderRight) shoulderRight = cv::Point(x, y);
+
+                                            if (x >= 0 && x < width && y >= 0 && y < height) {
+                                                jointPoints.push_back(cv::Point(x, y));
+                                            }
+                                        }
+                                    }
+
+                                    // Hi-Vis Detection (Assistant Crossing Check)
+                                    if (spineShoulder.x > 0 && shoulderLeft.x > 0 && shoulderRight.x > 0) {
+                                        cv::Rect hiViROI(shoulderLeft.x, spineShoulder.y, shoulderRight.x - shoulderLeft.x, 50);
+                                        if (hiViROI.x >= 0 && hiViROI.y >= 0 && hiViROI.x + hiViROI.width < width && hiViROI.y + hiViROI.height < height) {
+                                            validROI = true;
+                                            cv::Mat roi = bgrMat(hiViROI);
+                                            cv::Mat hsvROI;
+                                            cv::cvtColor(roi, hsvROI, cv::COLOR_BGR2HSV);
+
+                                            cv::Scalar lowerYellow(20, 100, 100), upperYellow(40, 255, 255);
+                                            cv::Scalar lowerGreen(40, 50, 50), upperGreen(80, 255, 255);
+                                            cv::Scalar lowerOrange(5, 150, 150), upperOrange(20, 255, 255);
+
+                                            cv::Mat maskYellow, maskGreen, maskOrange;
+                                            cv::inRange(hsvROI, lowerYellow, upperYellow, maskYellow);
+                                            cv::inRange(hsvROI, lowerGreen, upperGreen, maskGreen);
+                                            cv::inRange(hsvROI, lowerOrange, upperOrange, maskOrange);
+
+                                            cv::Mat combinedMask = maskYellow | maskGreen | maskOrange;
+                                            double hiViPixels = cv::countNonZero(combinedMask);
+                                            double totalPixels = hiViROI.area();
+                                            double hiViRatio = hiViPixels / totalPixels;
+
+                                            if (hiViRatio > 0.2) {
+                                                hiViDetected = true;
+                                            }
+                                            else {
+                                                participantRect = cv::boundingRect(jointPoints);
+                                            }
+                                        }
+                                    }
+
+                                    //  *New Occlusion Detection: If an object is in front of participant, invalidate test*
+                                    if (hiViDetected || (trackingID != lockedTrackingID && joints[JointType_SpineMid].Position.Z < joints[JointType_SpineShoulder].Position.Z)) {
+                                        std::cout << "Test Invalid: Assistant Interference Detected!" << std::endl;
+                                        testInvalid = true;
+
+                                    }
+
+                                    // If Hi-Vis detected, skip tracking this body
+                                    if (hiViDetected) {
+                                        continue;
+                                    }
+                                    //////////
+
+                                    float leftHandY = 0, rightHandY = 0, leftElbowY = 0, rightElbowY = 0;
+
+
+
+                                    //// Only draw circles for the left and right hand joints
+                                    //for (int j = 0; j < JointType_Count; j++) {
+                                    //    if (joints[j].TrackingState == TrackingState_Tracked &&
+                                    //        (j == JointType_HandLeft || j == JointType_HandRight || j == JointType_ElbowLeft || j == JointType_ElbowRight)) {
+
+                                    //        // Use the raw camera space coordinates (meters)
+                                    //        float x = joints[j].Position.X;
+                                    //        float y = joints[j].Position.Y;
+                                    //        float z = joints[j].Position.Z;
+
+                                    //        // Save specific Y values for the joints
+                                    //        if (j == JointType_HandLeft) {
+                                    //            leftHandY = y;
+                                    //            if (initialLeftHandZ == -1.0f) {
+                                    //                initialLeftHandZ = z;
+                                    //            }
+                                    //        }
+                                    //        else if (j == JointType_HandRight) {
+                                    //            rightHandY = y;
+                                    //            if (initialRightHandZ == -1.0f) {
+                                    //                initialRightHandZ = z;
+                                    //            }
+                                    //        }
+                                    //        else if (j == JointType_ElbowLeft) {
+                                    //            leftElbowY = y;
+                                    //            if (initialLeftElbowZ == -1.0f) {
+                                    //                initialLeftElbowZ = z;
+                                    //            }
+                                    //        }
+                                    //        else if (j == JointType_ElbowRight) {
+                                    //            rightElbowY = y;
+                                    //            if (initialRightElbowZ == -1.0f) {
+                                    //                initialRightElbowZ = z;
+                                    //            }
+                                    //        }
+
+                                    //        // Convert camera space to color space only for visualization
+                                    //        ColorSpacePoint colorPoint;
+                                    //        coordinateMapper->MapCameraPointToColorSpace(joints[j].Position, &colorPoint);
+                                    //        int cx = static_cast<int>(colorPoint.X); // Pixel coordinates for the live feed
+                                    //        int cy = static_cast<int>(colorPoint.Y);
+
+                                    //        // Ensure the pixel coordinates are within bounds before drawing
+                                    //        if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
+                                    //            cv::circle(bgrMat, cv::Point(cx, cy), 10, cv::Scalar(0, 0, 255), -1); // Draw a circle with radius 10
+
+                                    //            // Add text label next to the joints
+                                    //            if (j == JointType_HandLeft) {
+                                    //                cv::putText(bgrMat, "Left Hand", cv::Point(cx + 10, cy), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                                    //            }
+                                    //            else if (j == JointType_HandRight) {
+                                    //                cv::putText(bgrMat, "Right Hand", cv::Point(cx + 10, cy), cv::FONT_HERSHEY_SIMPLEX, 1, cv::Scalar(0, 255, 0), 2);
+                                    //            }
+
+                                    //            // Display the decimal camera space coordinates
+                                    //            cv::putText(bgrMat, "X: " + std::to_string(x) + " Y: " + std::to_string(y) + " Z: " + std::to_string(z),
+                                    //                cv::Point(cx + 10, cy + 20), cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 1);
+                                    //        }
+
+                                    //    }
+                                    //}
+
+
+                                    // Update history
+                                    if (leftHandYHistory.size() >= stabilityFramesThreshold) leftHandYHistory.pop_front();
+                                    if (rightHandYHistory.size() >= stabilityFramesThreshold) rightHandYHistory.pop_front();
+                                    if (leftElbowYHistory.size() >= stabilityFramesThreshold) leftElbowYHistory.pop_front();
+                                    if (rightElbowYHistory.size() >= stabilityFramesThreshold) rightElbowYHistory.pop_front();
+
+                                    leftHandYHistory.push_back(leftHandY);
+                                    rightHandYHistory.push_back(rightHandY);
+                                    leftElbowYHistory.push_back(leftElbowY);
+                                    rightElbowYHistory.push_back(rightElbowY);
+
+                                    // Check stability
+                                    bool leftHandStable = isStable(leftHandYHistory, stabilityYThreshold);
+                                    bool rightHandStable = isStable(rightHandYHistory, stabilityYThreshold);
+                                    bool leftElbowStable = isStable(leftElbowYHistory, stabilityYThreshold);
+                                    bool rightElbowStable = isStable(rightElbowYHistory, stabilityYThreshold);
+
+                                    //to perform the test two times
+                                    int testIteration = 0; // Counter to track test iterations
+
+                                    //Conditionl Statement When Arms are straight and stable, Message Printed flag is set to indicate that Test ready
+                                    if (leftHandStable && rightHandStable && leftElbowStable && rightElbowStable && !messagePrinted &&
+                                        joints[JointType_HandRight].Position.X - joints[JointType_ElbowRight].Position.X < armsinlinewithelbow &&
+                                        joints[JointType_HandLeft].Position.X - joints[JointType_ElbowLeft].Position.X < armsinlinewithelbow)
+
+                                        //print test ready message when arms are stable and initial Y coordinates for elbows are printed
+                                    {
+                                        messagePrinted = true; // Set the flag to true to prevent repeated printing
+
+                                        nonRaisedElbowRightX = joints[JointType_ElbowRight].Position.X;
+                                        nonRaisedElbowLeftX = joints[JointType_ElbowLeft].Position.X;
+                                        nonRaisedHandRightY = joints[JointType_HandRight].Position.Y;
+                                        nonRaisedHandLeftY = joints[JointType_HandLeft].Position.Y;
+                                        //std::cout << "Test Ready" << std::endl;
+                                        //std::cout << "Please Raise both of your arms" << std::endl;
+                                        speak("Please raise your arms");
+                                        //std::cout << "Initial Right Elbow X Coordinates are: " << nonRaisedElbowRightX << std::endl;
+                                        //std::cout << "Initial Left Elbow X Coordinates are: " << nonRaisedElbowLeftX << std::endl;
+                                    }
+
+                                    //Put Text on the Screen, when arms are stable, message is printed that Test is Ready
+                                    if (messagePrinted && !armsRaised && !testStarted)
+                                    {
+                                        cv::putText(bgrMat, "Test Ready", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Please Raise your arms", cv::Point(50, 100), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Right Hand Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                            cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Left Hand Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                            cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        //display Distance on Live Feed
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+
+
+                                    }
+
+                                    //Conditional Statement, To Print the coordinates of arms when raised. Coordinates are printed in tabular format
+                                    //Arms Raised Flag is set however test is not yet started
+                                    if (joints[JointType_ElbowRight].Position.Y - joints[JointType_HandRight].Position.Y < armsRaisedThresholdRight &&
+                                        joints[JointType_ElbowLeft].Position.Y - joints[JointType_HandLeft].Position.Y < armsRaisedThresholdLeft &&
+                                        leftHandStable && rightHandStable && leftElbowStable && rightElbowStable && messagePrinted && !armsRaised && !testStarted)
+                                    {
+                                        //setting the flag to true that the arms were raised
+                                        armsRaised = true;
+                                        armsStablePrinted = true; // Prevent printing again
+
+                                        //std::cout << "Arms Raised" << std::endl;
+                                        //std::cout << "Please keep your arms raised" << std::endl;
+
+
+                                        //storing the Right Hand X,Y,Z coordinates
+                                        initialRightHandZ = joints[JointType_HandRight].Position.Z;
+                                        initialRightHandY = joints[JointType_HandRight].Position.Y;
+                                        initialRightHandX = joints[JointType_HandRight].Position.X;
+                                        //Storing the Left Hand X,Y,Z Coordinates
+                                        initialLeftHandZ = joints[JointType_HandLeft].Position.Z;
+                                        initialLeftHandY = joints[JointType_HandLeft].Position.Y;
+                                        initialLeftHandX = joints[JointType_HandLeft].Position.X;
+
+                                        //std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << "  | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
+                                        //std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << " | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
+                                        //std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
+                                        //std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << "| y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
+
+                                        //std::cout << "Initial Right Hand Z Coordinates are: " << initialRightHandZ << std::endl;
+                                        //std::cout << "Initial Left Hand Z Coordinates are: " << initialLeftHandZ << std::endl;
+
+                                        //print message to bend forawrd
+                                        //std::cout << "Please bend forward" << std::endl;
+                                        speak("Test Ready, Please Bend Forward");
+                                    }
+
+                                    //Put text to display that the arms were raised and display message to bend forward
+                                    if (armsRaised && armsStablePrinted && !testStarted)
+                                    {
+                                        cv::putText(bgrMat, "Test Ready", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Bend Forward", cv::Point(50, 100), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Right Hand Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                            cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Left Hand Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                            cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        //display Distance on Live Feed
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+
+                                    }
+
+
+                                    //Now to calcuate distance covered by hands when bend forward
+                                    if ((initialRightHandZ - joints[JointType_HandRight].Position.Z > ThresholdZ) &&
+                                        (initialLeftHandZ - joints[JointType_HandLeft].Position.Z > ThresholdZ) &&
+                                        (std::abs(joints[JointType_HandRight].Position.X - initialRightHandX) < RightHandThreshold) &&
+                                        (std::abs(joints[JointType_HandLeft].Position.X - initialLeftHandX) < LeftHandThreshold) &&
+                                        armsRaised && !FinalMaximumDistance)
+
+                                    {
+                                        //set the flag of test Started to true
+                                        testStarted = true;
+                                        //speak test started
+                                        //speak("Test Started");
+
+                                        // Calculate the distance of the hands from their initial positions
+                                        currentRightHandZ = joints[JointType_HandRight].Position.Z;
+                                        currentLeftHandZ = joints[JointType_HandLeft].Position.Z;
+                                        DistanceRightHand = (initialRightHandZ - currentRightHandZ);
+                                        DistanceLeftHand = (initialLeftHandZ - currentLeftHandZ);
+
+                                        //std::cout << "Right Hand Distance: " << (DistanceRightHand) * 100.0f << " centimeters" << std::endl;
+                                        //std::cout << "Left Hand Distance: " << DistanceLeftHand * 100.0f << " centimeters" << std::endl;
+
+                                        if (MaximumRightHandDistance < DistanceRightHand)
+                                        {
+                                            MaximumRightHandDistance = DistanceRightHand;
+                                        }
+                                        if (MaximumLeftHandDistance < DistanceLeftHand)
+                                        {
+                                            MaximumLeftHandDistance = DistanceLeftHand;
+                                        }
+
+                                        if ((DistanceRightHand - MaximumRightHandDistance < 0.0f) && (DistanceLeftHand - MaximumLeftHandDistance < 0.0f))
+                                        {
+                                            FinalMaximumDistance = true;
+
+                                        }
+
+                                        // Conditional to print test started and to display maximum distance arms can travel
+                                        if (armsRaised && testStarted && !testCompleted)
+                                        {
+                                            //display test Started
+                                            cv::putText(bgrMat, "Test Started", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                            //display Right Hand Distance on Live Feed
+                                            cv::putText(bgrMat, "Right Hand Distance: " + std::to_string(DistanceRightHand * 100.0f) + " cm",
+                                                cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                            //display left Hand Distance on Live Feed
+                                            cv::putText(bgrMat, "Left Hand Distance: " + std::to_string(DistanceLeftHand * 100.0f) + " cm",
+                                                cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                    }
+
+
+
+                                    //display text to order to go back to initial position once final maximum distance is achieved
+                                    if (testStarted && FinalMaximumDistance && !initialPositionRetained && !testCompleted)
+                                    {
+                                        cv::putText(bgrMat, "Test Started", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "You Have Reached your limit.", cv::Point(50, 100), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Right Hand Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                            cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Left Hand Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                            cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        //display Distance on Live Feed
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+
+
+                                    }
+
+                                    //Conditional to check if person has achieved the initial Position again or not
+                                    if (initialRightHandZ - joints[JointType_HandRight].Position.Z <= initialPositionHandsRetainedZ &&
+                                        initialLeftHandZ - joints[JointType_HandLeft].Position.Z <= initialPositionHandsRetainedZ &&
+                                        initialRightHandY - joints[JointType_HandRight].Position.Y <= initialPositionHandsRetainedY &&
+                                        initialLeftHandY - joints[JointType_HandLeft].Position.Y <= initialPositionHandsRetainedY &&
+                                        initialRightHandX - joints[JointType_HandRight].Position.X <= initialPositionHandsRetainedX &&
+                                        initialLeftHandX - joints[JointType_HandLeft].Position.X <= initialPositionHandsRetainedX &&
+                                        FinalMaximumDistance && testStarted && !initialPositionRetained && !testCompleted)
+                                    {
+                                        //cout << "You Have Reached your initialPosition" << endl;
+                                        //std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << "  | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
+                                        //std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << "  | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
+                                        //std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
+                                        //std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << " | y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
+                                        initialPositionRetained = true;
+                                        //cout << "Please Put your hands down now" << endl;
+
+                                    }
+                                    //conditional to print this instruction on the screen too
+                                    if (testStarted && initialPositionRetained && !testCompleted)
+                                    {
+                                        cv::putText(bgrMat, "Test Started", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Now Please Put your Hands Down", cv::Point(50, 100), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        cv::putText(bgrMat, "Right Hand Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                            cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Left Hand Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                            cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        //display Distance on Live Feed
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+
+                                    }
+                                    //conditional to conclude the test finally, if hands are in position near standing still position
+                                    if (joints[JointType_HandRight].Position.Y - nonRaisedHandRightY <= nonRaisedArmsStandingStillFinalThreshold &&
+                                        joints[JointType_HandLeft].Position.Y - nonRaisedHandLeftY <= nonRaisedArmsStandingStillFinalThreshold &&
+                                        testStarted && initialPositionRetained && !testCompleted)
+                                    {
+                                        testCompleted = true;
+                                        //display the final readings for both hands
+                                        //cout << "Distance Reached by Right Hand: " << MaximumRightHandDistance * 100.0f << "cm" << endl;
+                                        //cout << "Distance Reached by Left Hand: " << MaximumLeftHandDistance * 100.0f << "cm" << endl;
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cout << "Maximum Distance: " << MaximumRightHandDistance * 100.0f << "cm" << endl;
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cout << "Maximum Distance: " << MaximumLeftHandDistance * 100.0f << "cm" << endl;
+                                        }
+
+                                        //cout << "Test Completed!" << endl;
+                                        speak("Test Completed");
+                                        //store the readings in the vector
+
+                                        //data log these readings in csv file
+                                        logFunctionalReachTest(std::vector<double>{MaximumRightHandDistance}, std::vector<double>{MaximumLeftHandDistance});
+
+                                    }
+
+                                    //display Test Completed on Live Feed
+                                    if (testCompleted)
+                                    {
+                                        cv::putText(bgrMat, "Test Completed!", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Right Hand Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                            cv::Point(50, 500), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+
+                                        cv::putText(bgrMat, "Left Hand Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                            cv::Point(50, 550), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        //display Distance on Live Feed
+                                        if (MaximumRightHandDistance > MaximumLeftHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumRightHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+                                        else if (MaximumLeftHandDistance > MaximumRightHandDistance)
+                                        {
+                                            cv::putText(bgrMat, "Distance: " + formatDistance(MaximumLeftHandDistance) + " cm",
+                                                cv::Point(50, 600), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
+                                        }
+
+                                    }
+
+
+
+                                    break;
+
+                                }
+                            }
+                        }
+                    }
+
+                    if (!hiViDetected && participantRect.area() > 0) {
+                        cv::rectangle(bgrMat, participantRect, cv::Scalar(0, 255, 0), 2);
+                        cv::putText(bgrMat, "Participant", cv::Point(participantRect.x, participantRect.y - 10),
+                            cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 0), 2);
+                    }
+
+                    bodyFrame->Release();
+                }
+                cv::imshow("Functional Reach Test", bgrMat);
+            }
+
+            delete[] colorBuffer;
+            colorFrame->Release();
+            frameDescription->Release();
+        }
+
+        if (cv::waitKey(30) == 13) break;
+    }
+
+    colorFrameReader->Release();
+    bodyFrameReader->Release();
+    coordinateMapper->Release();
+    colorSource->Release();
+    sensor->Close();
+    sensor->Release();
+
+    return 0;
+}
