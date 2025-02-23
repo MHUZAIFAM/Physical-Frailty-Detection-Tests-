@@ -56,7 +56,7 @@ float timerStopDepth = 0.0f;
 float finalElapsedSeconds = 0.0f; // Store final elapsed time
 
 void logWalkingSpeedTestTime(const std::vector<double>& testTimes) {
-    std::string filename = "Walking_Speed_Test_Results 2.csv";
+    std::string filename = "Walking_Speed_Test_Results_2.csv";
 
     std::ofstream outfile(filename, std::ios::trunc);  // Open file in truncate mode (overwrite)
     if (!outfile.is_open()) {
