@@ -244,71 +244,7 @@ int main() {
 
                                 }
 
-                                //// Only draw circles for selected joints
-                                //for (int j = 0; j < JointType_Count; j++) {
-                                //    if (joints[j].TrackingState == TrackingState_Tracked &&
-                                //        (j == JointType_HandLeft || j == JointType_HandRight ||
-                                //            j == JointType_ElbowLeft || j == JointType_ElbowRight ||
-                                //            j == JointType_SpineMid || j == JointType_SpineShoulder)) {
-
-                                //        // Use the raw camera space coordinates (meters)
-                                //        float x = joints[j].Position.X;
-                                //        float y = joints[j].Position.Y;
-                                //        float z = joints[j].Position.Z;
-
-                                //        // Save specific Y values for the joints
-                                //        if (j == JointType_HandLeft) {
-                                //            leftHandY = y;
-                                //            if (initialLeftHandZ == -1.0f) {
-                                //                initialLeftHandZ = z;
-                                //            }
-                                //        }
-                                //        else if (j == JointType_HandRight) {
-                                //            rightHandY = y;
-                                //            if (initialRightHandZ == -1.0f) {
-                                //                initialRightHandZ = z;
-                                //            }
-                                //        }
-                                //        else if (j == JointType_ElbowLeft) {
-                                //            leftElbowY = y;
-                                //            if (initialLeftElbowZ == -1.0f) {
-                                //                initialLeftElbowZ = z;
-                                //            }
-                                //        }
-                                //        else if (j == JointType_ElbowRight) {
-                                //            rightElbowY = y;
-                                //            if (initialRightElbowZ == -1.0f) {
-                                //                initialRightElbowZ = z;
-                                //            }
-                                //        }
-                                //        else if (j == JointType_SpineMid) {
-                                //            midSpineY = y;
-                                //            if (initialMidSpineZ == -1.0f) {
-                                //                initialMidSpineZ = z;
-                                //            }
-                                //        }
-                                //        else if (j == JointType_SpineShoulder) {
-                                //            shoulderSpineY = y;
-                                //            if (initialShoulderSpineZ == -1.0f) {
-                                //                initialShoulderSpineZ = z;
-                                //            }
-                                //        }
-
-                                //        // Convert camera space to color space for visualization
-                                //        ColorSpacePoint colorPoint;
-                                //        coordinateMapper->MapCameraPointToColorSpace(joints[j].Position, &colorPoint);
-                                //        int cx = static_cast<int>(colorPoint.X); // Pixel coordinates for the live feed
-                                //        int cy = static_cast<int>(colorPoint.Y);
-
-                                //        // Ensure the pixel coordinates are within bounds before drawing
-                                //        if (cx >= 0 && cx < width && cy >= 0 && cy < height) {
-                                //            cv::circle(bgrMat, cv::Point(cx, cy), 10, cv::Scalar(0, 0, 255), -1); // Draw a circle
-
-                                //           }
-                                //    }
-                                //}
-
-
+                                
                                 //Update history
                                 if (leftHandYHistory.size() >= stabilityFramesThreshold) leftHandYHistory.pop_front();
                                 if (rightHandYHistory.size() >= stabilityFramesThreshold) rightHandYHistory.pop_front();
@@ -367,18 +303,6 @@ int main() {
                                     nonRaisedShoulderSpineY = joints[JointType_SpineShoulder].Position.Y;
                                     nonRaisedShoulderSpineZ = joints[JointType_SpineShoulder].Position.Z;
 
-
-                                    //std::cout << "Test Ready." << std::endl;
-                                    //std::cout << "Please Raise your Arms." << std::endl;
-                                    // Display initial Y coordinates for arms
-
-                                    /*std::cout << "Initial Left Hand Y: " << leftHandY << std::endl;
-                                    std::cout << "Initial Right Hand Y: " << rightHandY << std::endl;
-                                    std::cout << "Initial Left Elbow Y: " << leftElbowY << std::endl;
-                                    std::cout << "Initial Right Elbow Y: " << rightElbowY << std::endl;
-                                    std::cout << "Initial Mid Spine Y: " << midSpineY << std::endl;
-                                    std::cout << "Initial Shoulder Spine Y: " << shoulderSpineY << std::endl;*/
-
                                     speak("Please raise your arms");
                                 }
 
@@ -422,19 +346,6 @@ int main() {
                                     raisedShoulderSpineX = joints[JointType_SpineShoulder].Position.X;
                                     raisedShoulderSpineY = joints[JointType_SpineShoulder].Position.Y;
                                     raisedShoulderSpineZ = joints[JointType_SpineShoulder].Position.Z;
-
-                                    //                           std::cout << "Right Hand Raised" << std::endl;
-                                                               //std::cout << "Left Hand Raised" << std::endl;
-
-                                    //                           //print the initial coordinates for right and left hand, right and left elbow
-                                    //                           std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << "  | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
-                                    //                           std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << " | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
-                                    //                           std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
-                                    //                           std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << "| y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
-                                    //                           
-
-                                                               //std::cout << "Arms Raised" << std::endl;
-                                                               //std::cout << "Please Bend Forward" << std::endl;
                                     speak("Test Ready, Please Bend Forward");
                                 }
 
@@ -446,12 +357,13 @@ int main() {
                                 //now the person bends forward coverind the distance in Z direction
                                 if (raisedLeftHandZ - joints[JointType_HandLeft].Position.Z >= armmovedthresholdZ &&
                                     raisedRightHandZ - joints[JointType_HandRight].Position.Z >= armmovedthresholdZ &&
+									fabs(raisedRightHandY - joints[JointType_HandRight].Position.Y) < armmovedthresholdY &&
+                                    fabs(raisedLeftHandY - joints[JointType_HandLeft].Position.Y) < armmovedthresholdY &&
+									fabs(raisedRightHandX - joints[JointType_HandRight].Position.X) < armmovedthresholdX &&
+									fabs(raisedLeftHandX - joints[JointType_HandLeft].Position.X) < armmovedthresholdX &&
                                     armsRaised && !FinalMaximumDistance)
                                 {
                                     testStarted = true;
-                                    //std::cout << "Test Started" << std::endl;
-                                    //speak("Test Started");
-
                                     // Calculate the distance of the hands from their initial positions
                                     RightHandDistance = fabs((raisedRightHandZ - joints[JointType_HandRight].Position.Z)) * 100.0f;    //current distance
                                     LeftHandDistance = fabs((raisedLeftHandZ - joints[JointType_HandLeft].Position.Z)) * 100.0f;       //current distance
@@ -471,7 +383,6 @@ int main() {
                                     if ((RightHandDistance - MaximumRightHandDistance < 0.0f) && (LeftHandDistance - MaximumLeftHandDistance < 0.0f))
                                     {
                                         FinalMaximumDistance = true;
-                                        //cout << "You Have Reached your limit." << endl;
                                     }
 
                                     if (armsRaised && testStarted && !initialPostureretain && !testComplete)
@@ -488,8 +399,7 @@ int main() {
                                 }
                                 if (testStarted && !testComplete && !initialPostureretain)
                                 {
-                                    //	cv::putText(bgrMat, "Test Started", cv::Point(50, 50), cv::FONT_HERSHEY_COMPLEX, 1, cv::Scalar(0, 0, 0), 2);
-
+                                    
                                 }
                                 if (FinalMaximumDistance && testStarted && !testComplete)
                                 {
@@ -513,12 +423,6 @@ int main() {
                                     fabs(raisedLeftHandX - joints[JointType_HandLeft].Position.X) <= initialPositionHandsRetainedX &&
                                     testStarted && FinalMaximumDistance && !initialPostureretain && !testComplete)
                                 {
-                                    /*cout << "You Have Reached your initialPosition" << endl;
-                                    std::cout << "Right Hand Coordinates | x: " << joints[JointType_HandRight].Position.X << "  | y: " << rightHandY << " | z: " << joints[JointType_HandRight].Position.Z << " |" << std::endl;
-                                    std::cout << "Right Elbow Coordinates| x: " << joints[JointType_ElbowRight].Position.X << "  | y: " << rightElbowY << " | z: " << joints[JointType_ElbowRight].Position.Z << " |" << std::endl;
-                                    std::cout << "Left Hand Coordinates  | x: " << joints[JointType_HandLeft].Position.X << " | y: " << leftHandY << " | z: " << joints[JointType_HandLeft].Position.Z << " |" << std::endl;
-                                    std::cout << "Left Elbow Coordinates | x: " << joints[JointType_ElbowLeft].Position.X << " | y: " << leftElbowY << " | z: " << joints[JointType_ElbowLeft].Position.Z << " |" << std::endl;
-                                    */
                                     initialPostureretain = true;
                                     testComplete = true;
                                     speak("Test Complete");
